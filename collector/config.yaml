@@ -1,0 +1,33 @@
+# Configuración del OpenTelemetry Collector (sidecar).
+# La app envía OTLP a localhost:4317; el Collector lo envía a Google Cloud.
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+
+processors:
+  # Evita que el Collector consuma toda la memoria del contenedor.
+  memory_limiter:
+    check_interval: 1s
+    limit_percentage: 80
+    spike_limit_percentage: 25
+  batch:
+    send_batch_size: 200
+    timeout: 1s
+  # Agrega datos de Cloud Run (proyecto, región, servicio, revisión).
+  resourcedetection:
+    detectors: [env, gcp]
+    timeout: 2s
+    override: false
+
+exporters:
+  # Envía las trazas a Cloud Trace usando la cuenta de servicio de Cloud Run.
+  googlecloud:
+
+service:
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [memory_limiter, resourcedetection, batch]
+      exporters: [googlecloud]
