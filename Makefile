@@ -15,8 +15,9 @@ run:
 call:
 	go run ./cmd/client -addr localhost:8080 -insecure
 
-# Compila en Cloud Build y despliega en Cloud Run (--use-http2 es obligatorio para gRPC)
+# Compila en Cloud Build y despliega (--use-http2 es obligatorio para gRPC; --no-cpu-throttling deja CPU para enviar trazas)
 deploy:
-	gcloud run deploy $(SERVICE) --source . --region $(REGION) --use-http2 --no-allow-unauthenticated
+	gcloud run deploy $(SERVICE) --source . --region $(REGION) --use-http2 --no-allow-unauthenticated \
+	  --no-cpu-throttling --set-env-vars OTEL_SERVICE_NAME=$(SERVICE)
 
 .PHONY: proto run call deploy

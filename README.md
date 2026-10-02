@@ -1,7 +1,7 @@
 # PoC telemetría: servicio gRPC "Hola mundo" en Cloud Run
 
 Servicio Go + gRPC que el proxy llamará. Responde `Hola <nombre>`.
-**Esta versión no tiene telemetría** (rama `main`). Cada enfoque de telemetría irá en su propia rama.
+**Rama `telemetria/otel-directo`:** la app envía trazas con OpenTelemetry directo a `telemetry.googleapis.com` (sin sidecar). La base sin telemetría está en `main`.
 
 ## Estructura
 
@@ -72,3 +72,27 @@ Crear el repo y la primera rama:
 git init -b main && git add . && git commit -m "Base sin telemetría"
 git switch -c telemetria/opentelemetry
 ```
+
+## Telemetría directa (esta rama)
+
+Cómo funciona: `otelgrpc` crea un span por cada llamada gRPC y lee el header `traceparent` que manda el proxy,
+así la traza continúa con el mismo trace ID. El código está en `internal/telemetry/telemetry.go`.
+
+Configuración en Google Cloud (una vez):
+
+```
+gcloud services enable telemetry.googleapis.com cloudtrace.googleapis.com
+# cuenta de servicio con la que corre Cloud Run:
+gcloud projects add-iam-policy-binding TU_PROYECTO \
+  --member=serviceAccount:CUENTA_DE_SERVICIO --role=roles/telemetry.tracesWriter
+gcloud projects add-iam-policy-binding TU_PROYECTO \
+  --member=serviceAccount:CUENTA_DE_SERVICIO --role=roles/serviceusage.serviceUsageConsumer
+```
+
+Para probar en local con tus credenciales: `gcloud auth application-default login` y
+`GOOGLE_CLOUD_PROJECT=TU_PROYECTO make run`.
+
+Ver las trazas: consola de Google Cloud, Trace Explorer, filtrando por el servicio `hello-grpc`.
+
+Requisito del proxy: debe enviar el trace ID en el header gRPC `traceparent` (formato W3C
+`00-<32 hex>-<16 hex>-01`). Si usa otro formato, hay que convertirlo.

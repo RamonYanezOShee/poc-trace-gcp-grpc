@@ -1,5 +1,5 @@
-// Cliente de prueba que simula al proxy: llama al servicio y envía un trace ID
-// en los headers. Sirve para probar local o contra Cloud Run.
+// Cliente de prueba que simula al proxy: genera un trace ID y lo envía en el
+// header W3C "traceparent". Así el servicio continúa esa misma traza.
 //
 // Local:      go run ./cmd/client -addr localhost:8080 -insecure
 // Cloud Run:  go run ./cmd/client -addr mi-servicio-xxxx.a.run.app:443 -token "$(gcloud auth print-identity-token)"
@@ -11,6 +11,7 @@ import (
 	"crypto/tls"
 	"encoding/hex"
 	"flag"
+	"fmt"
 	"log"
 	"time"
 
@@ -21,6 +22,12 @@ import (
 
 	hellov1 "github.com/RamonYanezOShee/poc-trace-gcp-grpc/gen/hello/v1"
 )
+
+func randomHex(nBytes int) string {
+	b := make([]byte, nBytes)
+	_, _ = rand.Read(b)
+	return hex.EncodeToString(b)
+}
 
 func main() {
 	addr := flag.String("addr", "localhost:8080", "host:puerto del servicio")
@@ -42,12 +49,11 @@ func main() {
 	}
 	defer conn.Close()
 
-	// Trace ID de ejemplo (el proxy real ya genera el suyo).
-	b := make([]byte, 16)
-	_, _ = rand.Read(b)
-	traceID := hex.EncodeToString(b)
+	// Formato W3C: 00-<trace-id 32 hex>-<span-id 16 hex>-<flags>; 01 = muestreado.
+	traceID := randomHex(16)
+	traceparent := fmt.Sprintf("00-%s-%s-01", traceID, randomHex(8))
 
-	md := metadata.Pairs("x-trace-id", traceID)
+	md := metadata.Pairs("traceparent", traceparent)
 	if *token != "" {
 		md.Set("authorization", "Bearer "+*token)
 	}
